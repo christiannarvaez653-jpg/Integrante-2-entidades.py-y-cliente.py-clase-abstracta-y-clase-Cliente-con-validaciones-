@@ -1,151 +1,93 @@
 # =============================================================================
 # Módulo: cliente.py
 # Responsable: Integrante 2
-# Descripción: Implementa la clase Cliente heredando de EntidadSistema, con
-#              encapsulación privada, validaciones estrictas, encadenamiento
-#              de excepciones y registro en el archivo de logs del sistema.
+# Descripción: Clase Cliente con datos personales encapsulados (atributos
+#              privados + propiedades) y validaciones estrictas.
 # =============================================================================
 
-import re  # Expresiones regulares para validar formato de correo
-from entidades import EntidadSistema  # Clase abstracta base
-from excepciones import ClienteInvalidoError, ParametroFaltanteError  # Excepciones Integrante 1
-from logger import obtener_logger  # Logger configurado por el Integrante 1
+import re  # Expresiones regulares para validar correo, documento y teléfono
 
-logger = obtener_logger()  # Instancia compartida del sistema de logs
+from entidades import EntidadBase  # Clase abstracta padre
+from excepciones import ClienteInvalidoError, ParametroFaltanteError  # Errores propios
 
 
-class Cliente(EntidadSistema):  # Hereda de la clase abstracta EntidadSistema
-    """Representa un cliente de Software FJ con datos encapsulados y validados."""
+class Cliente(EntidadBase):  # Cliente HEREDA de EntidadBase
+    """Cliente de Software FJ."""
 
-    def __init__(self, id_cliente: str, nombre: str, documento: str, correo: str, telefono: str):
-        super().__init__(id_cliente)  # Inicializa y valida el ID en la clase padre
+    PATRON_CORREO = re.compile(r"^[\w.+-]+@[\w-]+\.[\w.-]+$")  # Formato usuario@dominio.ext
+    PATRON_DOCUMENTO = re.compile(r"^\d{6,12}$")  # Solo números, entre 6 y 12 dígitos
+    PATRON_TELEFONO = re.compile(r"^3\d{9}$")  # Celular colombiano: 10 dígitos que empiezan por 3
 
-        # Atributos privados (encapsulación estricta)
-        self.__nombre = None
-        self.__documento = None
-        self.__correo = None
-        self.__telefono = None
-        self.__activo = True
+    def __init__(self, nombre, documento, correo, telefono):  # Datos del cliente
+        super().__init__("CLI")  # Crea el id con prefijo CLI
+        self.nombre = nombre  # Usa el setter (valida automáticamente)
+        self.documento = documento  # Usa el setter (valida automáticamente)
+        self.correo = correo  # Usa el setter (valida automáticamente)
+        self.telefono = telefono  # Usa el setter (valida automáticamente)
 
-        # Asignación mediante setters para ejecutar todas las reglas de validación
-        self.nombre = nombre
-        self.documento = documento
-        self.correo = correo
-        self.telefono = telefono
+    # ---------------- Método auxiliar privado ----------------
+    @staticmethod  # No necesita acceder al objeto
+    def _requerido(valor, campo):  # Verifica que el dato exista
+        if valor is None or str(valor).strip() == "":  # Vacío o None
+            raise ParametroFaltanteError(campo)  # Lanza error de parámetro faltante
+        return str(valor).strip()  # Devuelve el valor limpio
 
-        self.validar_datos()  # Verificación final de integridad
-        logger.info(f"Cliente registrado correctamente: {self.obtener_resumen()}")
+    # ---------------- Nombre ----------------
+    @property  # Getter
+    def nombre(self):  # Lee el nombre
+        return self.__nombre  # Atributo privado
 
-    # --- PROPIEDAD: NOMBRE ---
-    @property
-    def nombre(self) -> str:
-        return self.__nombre
+    @nombre.setter  # Setter con validación
+    def nombre(self, valor):  # Asigna el nombre
+        valor = self._requerido(valor, "nombre")  # No puede estar vacío
+        if len(valor) < 3 or not all(c.isalpha() or c.isspace() for c in valor):  # Mín. 3 letras, sin números
+            raise ClienteInvalidoError(f"Nombre inválido: '{valor}' (solo letras, mínimo 3)")  # Error
+        self.__nombre = valor.title()  # Guarda con mayúscula inicial
 
-    @nombre.setter
-    def nombre(self, valor: str):
-        if valor is None or (isinstance(valor, str) and not valor.strip()):
-            raise ParametroFaltanteError("nombre")  # Excepción FJ-200
-        if not isinstance(valor, str) or len(valor.strip()) < 3:
-            raise ClienteInvalidoError(f"Nombre '{valor}' inválido: mínimo 3 caracteres.")  # FJ-101
-        if any(caracter.isdigit() for caracter in valor):
-            raise ClienteInvalidoError(f"Nombre '{valor}' inválido: no debe contener números.")
-        self.__nombre = valor.strip().title()
+    # ---------------- Documento ----------------
+    @property  # Getter
+    def documento(self):  # Lee el documento
+        return self.__documento  # Atributo privado
 
-    # --- PROPIEDAD: DOCUMENTO (Con encadenamiento de excepciones) ---
-    @property
-    def documento(self) -> str:
-        return self.__documento
+    @documento.setter  # Setter con validación
+    def documento(self, valor):  # Asigna el documento
+        valor = self._requerido(valor, "documento")  # Obligatorio
+        if not self.PATRON_DOCUMENTO.match(valor):  # Debe cumplir el patrón
+            raise ClienteInvalidoError(f"Documento inválido: '{valor}' (6 a 12 dígitos)")  # Error
+        self.__documento = valor  # Guarda el documento
 
-    @documento.setter
-    def documento(self, valor: str):
-        if valor is None or (isinstance(valor, str) and not valor.strip()):
-            raise ParametroFaltanteError("documento")  # Excepción FJ-200
-        try:
-            doc_limpio = str(valor).strip()  # Elimina espacios sobrantes
-            numero_doc = int(doc_limpio)  # Intenta convertir a entero para validar dígitos
-            if numero_doc <= 0 or len(doc_limpio) < 5:
-                raise ValueError("El documento debe ser positivo y tener al menos 5 dígitos.")
-            self.__documento = doc_limpio
-        except (ValueError, TypeError) as error_original:
-            # Encadenamiento de excepciones ('raise ... from error_original')
-            raise ClienteInvalidoError(
-                f"Documento '{valor}' inválido: debe contener solo números válidos."
-            ) from error_original
+    # ---------------- Correo ----------------
+    @property  # Getter
+    def correo(self):  # Lee el correo
+        return self.__correo  # Atributo privado
 
-    # --- PROPIEDAD: CORREO ELECTRÓNICO ---
-    @property
-    def correo(self) -> str:
-        return self.__correo
+    @correo.setter  # Setter con validación
+    def correo(self, valor):  # Asigna el correo
+        valor = self._requerido(valor, "correo")  # Obligatorio
+        if not self.PATRON_CORREO.match(valor):  # Debe tener formato de correo
+            raise ClienteInvalidoError(f"Correo inválido: '{valor}'")  # Error
+        self.__correo = valor.lower()  # Guarda en minúsculas
 
-    @correo.setter
-    def correo(self, valor: str):
-        if valor is None or (isinstance(valor, str) and not valor.strip()):
-            raise ParametroFaltanteError("correo")  # Excepción FJ-200
-        patron = r"^[\w\.-]+@[\w\.-]+\.\w+$"  # Patrón estándar usuario@dominio.ext
-        if not isinstance(valor, str) or not re.match(patron, valor.strip()):
-            raise ClienteInvalidoError(f"Correo '{valor}' inválido: formato incorrecto.")  # FJ-101
-        self.__correo = valor.strip().lower()
+    # ---------------- Teléfono ----------------
+    @property  # Getter
+    def telefono(self):  # Lee el teléfono
+        return self.__telefono  # Atributo privado
 
-    # --- PROPIEDAD: TELÉFONO ---
-    @property
-    def telefono(self) -> str:
-        return self.__telefono
+    @telefono.setter  # Setter con validación
+    def telefono(self, valor):  # Asigna el teléfono
+        valor = self._requerido(valor, "telefono")  # Obligatorio
+        if not self.PATRON_TELEFONO.match(valor):  # Debe ser celular válido
+            raise ClienteInvalidoError(f"Teléfono inválido: '{valor}' (10 dígitos, inicia en 3)")  # Error
+        self.__telefono = valor  # Guarda el teléfono
 
-    @telefono.setter
-    def telefono(self, valor: str):
-        if valor is None or (isinstance(valor, str) and not valor.strip()):
-            raise ParametroFaltanteError("telefono")  # Excepción FJ-200
-        tel_limpio = str(valor).strip()
-        if not tel_limpio.isdigit() or not (7 <= len(tel_limpio) <= 15):
-            raise ClienteInvalidoError(
-                f"Teléfono '{valor}' inválido: debe tener entre 7 y 15 dígitos."
-            )
-        self.__telefono = tel_limpio
+    # ---------------- Métodos abstractos implementados ----------------
+    def validar(self):  # Revalida todos los datos del cliente
+        self.nombre = self.nombre  # Pasa de nuevo por el setter
+        self.documento = self.documento  # Pasa de nuevo por el setter
+        self.correo = self.correo  # Pasa de nuevo por el setter
+        self.telefono = self.telefono  # Pasa de nuevo por el setter
+        return True  # Si no hubo excepción, es válido
 
-    # --- PROPIEDAD: ESTADO ---
-    @property
-    def activo(self) -> bool:
-        return self.__activo
-
-    def desactivar(self):
-        """Inhabilita el cliente sin eliminar su historial del sistema."""
-        self.__activo = False
-        logger.info(f"Cliente {self.id_entidad} marcado como inactivo.")
-
-    # --- IMPLEMENTACIÓN DE MÉTODOS ABSTRACTOS ---
-    def validar_datos(self) -> bool:
-        """Verifica que todos los campos obligatorios tengan información válida."""
-        if not all([self.__nombre, self.__documento, self.__correo, self.__telefono]):
-            raise ClienteInvalidoError("El cliente tiene atributos obligatorios incompletos.")
-        return True
-
-    def obtener_resumen(self) -> str:
-        """Retorna una cadena formateada con los datos principales del cliente."""
-        estado = "Activo" if self.__activo else "Inactivo"
-        return (
-            f"[Cliente {self.id_entidad}] {self.__nombre} | "
-            f"Doc: {self.__documento} | Correo: {self.__correo} | "
-            f"Tel: {self.__telefono} | Estado: {estado}"
-        )
-
-
-# =============================================================================
-# Bloque de validación secuencial del módulo (pruebas unitarias rápidas)
-# =============================================================================
-if __name__ == "__main__":
-    print("=== PRUEBAS DE VALIDACIÓN: MÓDULO CLIENTE ===")
-
-    # Caso 1: Creación válida
-    try:
-        c1 = Cliente("cli-01", "Laura Gómez", "1020304050", "laura@softwarefj.com", "3001234567")
-        print("OK ->", c1)
-    except Exception as err:
-        print("FALLO INESPERADO:", err)
-
-    # Caso 2: Documento inválido (prueba encadenamiento de excepciones y código FJ-101)
-    try:
-        c2 = Cliente("cli-02", "Carlos Ruiz", "ABC999", "carlos@correo.com", "3109876543")
-    except ClienteInvalidoError as err:
-        logger.error(f"Error controlado en prueba de cliente: {err} | Causa: {err.__cause__}")
-        print(f"OK (Excepción capturada) -> {err}")
-        print(f"   Causa original encadenada -> {repr(err.__cause__)}")
+    def describir(self):  # Descripción del cliente (polimorfismo)
+        doc_oculto = "****" + self.documento[-4:]  # Oculta parte del documento (protección de datos)
+        return f"{self.id} | {self.nombre} | Doc: {doc_oculto} | {self.correo}"  # Texto final

@@ -1,52 +1,39 @@
 # =============================================================================
 # Módulo: entidades.py
 # Responsable: Integrante 2
-# Descripción: Define la clase abstracta base EntidadSistema de la cual
-#              heredan todas las entidades del sistema Software FJ
-#              (Clientes, Servicios y Reservas).
+# Descripción: Clase abstracta EntidadBase, de la que heredan Cliente,
+#              Servicio y Reserva. Aplica ABSTRACCIÓN y ENCAPSULACIÓN.
 # =============================================================================
 
-from abc import ABC, abstractmethod  # Herramientas para clases y métodos abstractos
-from datetime import datetime  # Permite registrar la fecha y hora de creación
-from excepciones import ValidacionError, ParametroFaltanteError  # Excepciones del Integrante 1
+from abc import ABC, abstractmethod  # ABC permite crear clases abstractas
+from datetime import datetime  # Para guardar la fecha de creación
 
 
-class EntidadSistema(ABC):  # Clase abstracta raíz del modelo de dominio
-    """Clase abstracta que representa una entidad general en Software FJ."""
+class EntidadBase(ABC):  # Clase abstracta: no se puede instanciar directamente
+    """Representa cualquier entidad general del sistema."""
 
-    def __init__(self, id_entidad: str):  # Constructor base para toda entidad
-        self._id_entidad = None  # Atributo protegido para el identificador
-        self._fecha_creacion = datetime.now()  # Marca de tiempo automática
-        self.id_entidad = id_entidad  # Asigna usando el setter para validar
+    _contadores = {}  # Diccionario compartido: un contador por prefijo (CLI, SRV, RES)
 
-    @property
-    def id_entidad(self) -> str:  # Getter del identificador
-        """Devuelve el identificador único de la entidad."""
-        return self._id_entidad
+    def __init__(self, prefijo):  # El prefijo identifica el tipo de entidad
+        EntidadBase._contadores[prefijo] = EntidadBase._contadores.get(prefijo, 0) + 1  # Aumenta el contador del prefijo
+        self.__id = f"{prefijo}-{EntidadBase._contadores[prefijo]:03d}"  # Atributo privado: ej. CLI-001
+        self.__fecha_creacion = datetime.now()  # Atributo privado: momento de creación
 
-    @id_entidad.setter
-    def id_entidad(self, valor: str):  # Setter con validación estricta
-        """Valida que el ID sea enviado y no esté vacío."""
-        if valor is None or (isinstance(valor, str) and not valor.strip()):
-            raise ParametroFaltanteError("id_entidad")  # Lanza excepción FJ-200
-        if not isinstance(valor, str):
-            raise ValidacionError("El ID de la entidad debe ser una cadena de texto.")
-        self._id_entidad = valor.strip().upper()  # Normaliza en mayúsculas
+    @property  # Getter de solo lectura (encapsulación)
+    def id(self):  # Permite leer el id pero no modificarlo
+        return self.__id  # Devuelve el identificador
 
-    @property
-    def fecha_creacion(self) -> datetime:  # Getter de solo lectura
-        """Devuelve la fecha y hora en que se creó la entidad."""
-        return self._fecha_creacion
+    @property  # Getter de solo lectura
+    def fecha_creacion(self):  # Permite leer la fecha de creación
+        return self.__fecha_creacion  # Devuelve la fecha
 
-    @abstractmethod
-    def validar_datos(self) -> bool:  # Método obligatorio para clases hijas
-        """Valida la integridad de todos los atributos de la entidad."""
-        pass
+    @abstractmethod  # Obliga a las clases hijas a implementarlo
+    def describir(self):  # Cada entidad se describe a su manera (polimorfismo)
+        """Devuelve una descripción en texto de la entidad."""
 
-    @abstractmethod
-    def obtener_resumen(self) -> str:  # Método polimórfico obligatorio
-        """Devuelve una descripción legible de la entidad."""
-        pass
+    @abstractmethod  # Obliga a las clases hijas a implementarlo
+    def validar(self):  # Cada entidad define sus propias reglas
+        """Valida el estado interno de la entidad; lanza excepción si es inválido."""
 
-    def __str__(self) -> str:  # Representación en texto estándar
-        return self.obtener_resumen()
+    def __str__(self):  # Al imprimir el objeto
+        return self.describir()  # Se usa la descripción polimórfica
